@@ -1,28 +1,6 @@
-import struct
-
 from obj import  Obj
-
-def char(c):
-    # 1 byte
-    return struct.pack('=c', c.encode('ascii'))
-
-def word(w):
-    # 2 bytes
-    return struct.pack('=h',w)
-
-def dword(d):
-    # 4 bytes
-    return struct.pack('=l',d)
-
-def color(r, g, b):
-    return bytes([b, g, r])
-
-def decimalToRgb(decimal_array):
-    rgb_array = []
-    for i in range(3):
-        rgb_array.append(int(round(decimal_array[i]*255)))
-    return rgb_array
-
+from utils.gl_color import color, decimalToRgb
+from utils.gl_encode import char, word, dword
 
 BLACK = color(0,0,0)
 WHITE = color(255,255,255)
@@ -117,6 +95,7 @@ class Render(object):
                 y += 1 if y0 < y1 else -1
                 limit += 2*dx
     
+    # Generate .bmp file
     def glFinish(self, filename):
         archivo = open(filename, 'wb')
 
@@ -174,8 +153,6 @@ class Render(object):
         except ZeroDivisionError:
             pass
             
-        
-
         for x in range(x0, x1+1):
             self.glPoint(y, x) if steep else self.glPoint(x, y)
             
@@ -185,6 +162,56 @@ class Render(object):
                 y += 1 if y0 < y1 else -1
                 limit += 2*dx        
     
+    
+    # Check if a given point (x,y) is inside the polygon
+    def glIsPointInPolygon(self, x, y, polygon):
+        # Args:
+        #   x: the x coordinate of point.
+        #   y: the y coordinate of point.
+        #   polygon: a list of tuples [(x, y), (x, y), ...] representing the vertices of the polygon
+
+        # Returns:
+        #   True if the point is in the path.
+        verticesCount = len(polygon)
+        j = verticesCount - 1
+        c = False
+        for i in range(verticesCount):
+            if ((polygon[i][1] > y) != (polygon[j][1] > y)) and \
+                    (x < polygon[i][0] + (polygon[j][0] - polygon[i][0]) * (y - polygon[i][1]) /
+                                    (polygon[j][1] - polygon[i][1])):
+                c = not c
+            j = i
+        return c
+    
+    # Fill the polygon
+    def glFillPolygon(self, polygon):
+        # Args:
+        #   polygon: a list of tuples [(x, y), (x, y), ...] representing the vertices of the polygon
+
+        # Returns:
+        #   nothing
+        
+        minX, maxX, minY, maxY = 0,0,0,0
+        
+        # Calculate the min and max points in x-axis and y-axis for the polygon
+        for i in range(len(polygon)):
+            if(polygon[i][0] < minX):
+                minX = polygon[i][0]
+            elif(polygon[i][0] > maxX):
+                maxX = polygon[i][0]
+            if(polygon[i][1] < minY):
+                minY = polygon[i][1]
+            elif(polygon[i][1] > maxY):
+                maxY = polygon[i][1]
+
+        # Iterate over those numbers and check if every point is in the polygon
+        # If it is, fill it
+        for y in range(minY, maxY):
+            for x in range(minX, maxX):
+                if (self.glIsPointInPolygon(x,y, polygon)):
+                    self.glPoint(x, y)
+    
+    # Draw the polygon joining the dots with glLinge_coord
     def glDrawPolygon(self, vertices):
         count = len(vertices)
 
@@ -192,44 +219,6 @@ class Render(object):
             v0 = vertices[limit]
             v1 = vertices[(limit + 1) % count]
             self.glLine_coord(v0[0], v0[1], v1[0], v1[1])
-
-    def is_point_in_path(self, x, y, poly):
-        # Args:
-        #   x -- The x coordinates of point.
-        #   y -- The y coordinates of point.
-        #   poly -- a list of tuples [(x, y), (x, y), ...]
-
-        # Returns:
-        #   True if the point is in the path.
-        num = len(poly)
-        i = 0
-        j = num - 1
-        c = False
-        for i in range(num):
-            if ((poly[i][1] > y) != (poly[j][1] > y)) and \
-                    (x < poly[i][0] + (poly[j][0] - poly[i][0]) * (y - poly[i][1]) /
-                                    (poly[j][1] - poly[i][1])):
-                c = not c
-            j = i
-        return c
-
-    def scan(self, poly):
-        minX, maxX, minY, maxY = 0,0,0,0
-        for i in range(len(poly)):
-            if(poly[i][0] < minX):
-                minX = poly[i][0]
-            elif(poly[i][0] > maxX):
-                maxX = poly[i][0]
-            if(poly[i][1] < minY):
-                minY = poly[i][1]
-            elif(poly[i][1] > maxY):
-                maxY = poly[i][1]
-
-        for y in range(minY, maxY):
-            for x in range(minX, maxX):
-                if (self.is_point_in_path(x,y, poly)):
-                    #print(str(self.is_point_in_path(y,x, poly)) + " cords " + str(x) + "," + str(y))
-                    self.glPoint(x, y)
     
     def loadModel(self, filename, translate, scale):
         model = Obj(filename)
